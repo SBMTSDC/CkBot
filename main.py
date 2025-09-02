@@ -1,6 +1,6 @@
 # ---------- Render(Web Service, Free)용 더미 웹서버 ----------
 from keep_alive import keep_alive
-keep_alive()  # 포트를 열어 두어야 Render 무료 플랜에서 유지됩니다.
+keep_alive()  # 포트를 열어 Render 헬스체크(200 OK) 응답
 
 # ---------- 기본 import ----------
 import os
@@ -13,6 +13,7 @@ from discord import app_commands
 from discord.ext import commands
 
 # ---------- 봇 설정 ----------
+# 슬래시 명령에는 privileged intents 불필요. 기본값으로 충분
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
@@ -42,7 +43,7 @@ def slot_line(names: list[str]) -> str:
 async def reset_weekly_data():
     while True:
         now = datetime.now()
-        # 다음 월요일 0시 계산 (월=0 … 일=6)
+        # 다음 월요일 0시 (월=0 … 일=6)
         days_ahead = (7 - now.weekday()) % 7
         next_monday = now + timedelta(days=days_ahead)
         reset_time = datetime.combine(next_monday.date(), datetime.min.time())
@@ -59,22 +60,34 @@ async def reset_weekly_data():
 async def on_ready():
     print(f"🤖 봇 로그인 완료: {bot.user}")
 
-    # 🔴 기존 글로벌 커맨드(예: /남은자리) 정리용: 전역 동기화 먼저
+    # 전역 동기화 → 코드에 없는 글로벌 커맨드는 제거됨
     try:
-        await tree.sync()  # GLOBAL sync: 현재 코드에 없는 커맨드는 전역에서 제거됨
-        print("synced global commands")
+        synced = await tree.sync()
+        print(f"synced global commands: {len(synced)}")
     except Exception as e:
         print("global sync error:", e)
 
-    # 길드별 강제 동기화(즉시 반영)
+    # 길드별 동기화(즉시 반영)
     for guild in bot.guilds:
         try:
-            await tree.sync(guild=guild)
+            gsynced = await tree.sync(guild=guild)
+            print(f"synced to guild {guild.name}: {len(gsynced)}")
         except Exception as e:
             print("sync error:", guild.name, e)
 
-    if not any(t.get_coro().__name__ == "reset_weekly_data" for t in asyncio.all_tasks() if not t.done()):
+    # 주간 초기화 태스크 중복 방지 후 등록
+    if not any(t.get_coro().__name__ == "reset_weekly_data"
+               for t in asyncio.all_tasks()
+               if not t.done()):
         bot.loop.create_task(reset_weekly_data())
+
+@bot.event
+async def on_disconnect():
+    print("⚠️  게이트웨이 연결 끊김 (자동 재연결 대기)")
+
+@bot.event
+async def on_resumed():
+    print("🔄  게이트웨이 세션 재개")
 
 # ---------- 슬래시 명령어들 ----------
 # 참가신청
@@ -129,4 +142,8 @@ async def cancel(
         await interaction.response.send_message("⚠️ 해당 시간에 신청 내역이 없습니다.", ephemeral=True)
 
 # ---------- 실행 ----------
-bot.run(os.getenv("DISCORD_TOKEN"))
+if __name__ == "__main__":
+    token = os.getenv("DISCORD_TOKEN")
+    if not token:
+        raise RuntimeError("DISCORD_TOKEN 환경변수가 설정되지 않았습니다.")
+    bot.run(token)
