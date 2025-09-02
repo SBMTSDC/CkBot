@@ -58,13 +58,21 @@ async def reset_weekly_data():
 @bot.event
 async def on_ready():
     print(f"🤖 봇 로그인 완료: {bot.user}")
-    # 길드별 강제 동기화(캐시 무시하고 즉시 반영)
+
+    # 🔴 기존 글로벌 커맨드(예: /남은자리) 정리용: 전역 동기화 먼저
+    try:
+        await tree.sync()  # GLOBAL sync: 현재 코드에 없는 커맨드는 전역에서 제거됨
+        print("synced global commands")
+    except Exception as e:
+        print("global sync error:", e)
+
+    # 길드별 강제 동기화(즉시 반영)
     for guild in bot.guilds:
         try:
             await tree.sync(guild=guild)
         except Exception as e:
             print("sync error:", guild.name, e)
-    # 주간 리셋 태스크 시작(중복 방지)
+
     if not any(t.get_coro().__name__ == "reset_weekly_data" for t in asyncio.all_tasks() if not t.done()):
         bot.loop.create_task(reset_weekly_data())
 
