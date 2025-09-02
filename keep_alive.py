@@ -9,7 +9,7 @@ def home():
     return "CK Bot is alive!"
 
 def _run():
-    port = int(os.getenv("PORT", "8080"))  # Render가 지정해주는 PORT 우선
+    port = int(os.getenv("PORT", "8080"))  # Render에서 PORT 환경변수로 포트 지정
     app.run(host="0.0.0.0", port=port)
 
 def keep_alive():
