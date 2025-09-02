@@ -1,5 +1,5 @@
 from keep_alive import keep_alive
-keep_alive()  # 웹 서비스용 더미 서버 (무료 플랜 유지에 필요)
+keep_alive()
 
 import os
 import asyncio
