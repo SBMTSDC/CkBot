@@ -24,20 +24,12 @@ events = {
     "일요일-3시": [],
     "일요일-8시": []
 }
-MAX_PLAYERS = 10
 
 # ---------- 유틸 ----------
 def user_display_name(interaction: discord.Interaction) -> str:
     """서버 닉네임 -> 글로벌 이름 -> 계정명 순으로 표시 이름 결정"""
     u = interaction.user
     return getattr(u, "display_name", None) or getattr(u, "global_name", None) or u.name
-
-def progress_bar(current: int, total: int, width: int = 10) -> str:
-    """▰▱ 진행바(고정 폭)"""
-    current = max(0, min(current, total))
-    on = "▰" * current
-    off = "▱" * (width - current)
-    return on + off
 
 def slot_line(names: list[str]) -> str:
     """이름 목록을 1줄 요약(길면 생략)"""
@@ -77,7 +69,7 @@ async def on_ready():
         bot.loop.create_task(reset_weekly_data())
 
 # ---------- 슬래시 명령어들 ----------
-# 참가신청: 요일/시간 드롭다운(고정 선택지)
+# 참가신청
 @tree.command(name="참가신청", description="성CK 참가 신청")
 @app_commands.describe(요일="토요일/일요일", 시간="3시/8시")
 async def register(
@@ -93,30 +85,26 @@ async def register(
     if user in events[key]:
         await interaction.response.send_message("⚠️ 이미 신청하셨습니다.", ephemeral=True)
         return
-    if len(events[key]) >= MAX_PLAYERS:
-        await interaction.response.send_message("❌ 자리가 가득 찼습니다.", ephemeral=True)
-        return
     events[key].append(user)
     await interaction.response.send_message(f"✅ {key} 참가 신청 완료!")
 
-# 등록현황(임베드 + 진행바)
+# 등록현황
 @tree.command(name="등록현황", description="현재 참가 현황 보기")
 async def status(interaction: discord.Interaction):
     emb = discord.Embed(
-        title="📋 성CK 등록 현황",
+        title="📋 성CK 등록 현황 (정원 제한 없음)",
         color=discord.Color.blurple()
     )
     order = ["토요일-3시", "토요일-8시", "일요일-3시", "일요일-8시"]
     for key in order:
         names = events[key]
         cnt = len(names)
-        bar = progress_bar(cnt, MAX_PLAYERS, width=10)
-        value = f"{bar}  **{cnt}/{MAX_PLAYERS}**\n{slot_line(names)}"
+        value = f"**{cnt}명 신청**\n{slot_line(names)}"
         emb.add_field(name=key, value=value, inline=False)
     emb.set_footer(text="매주 월요일 0시에 자동 초기화")
     await interaction.response.send_message(embed=emb)
 
-# 취소: 요일/시간 드롭다운
+# 취소
 @tree.command(name="취소", description="참가 신청 취소")
 @app_commands.describe(요일="토요일/일요일", 시간="3시/8시")
 async def cancel(
@@ -131,21 +119,6 @@ async def cancel(
         await interaction.response.send_message(f"❎ {key} 참가가 취소되었습니다.")
     else:
         await interaction.response.send_message("⚠️ 해당 시간에 신청 내역이 없습니다.", ephemeral=True)
-
-# 남은자리(빈 슬롯만 깔끔히)
-@tree.command(name="남은자리", description="빈 자리 확인")
-async def spots(interaction: discord.Interaction):
-    emb = discord.Embed(title="🎯 남은 자리", color=discord.Color.green())
-    any_open = False
-    order = ["토요일-3시", "토요일-8시", "일요일-3시", "일요일-8시"]
-    for key in order:
-        left = MAX_PLAYERS - len(events[key])
-        if left > 0:
-            any_open = True
-            emb.add_field(name=key, value=f"남은 자리: **{left}** / {MAX_PLAYERS}", inline=False)
-    if not any_open:
-        emb.description = "모든 슬롯이 가득 찼습니다."
-    await interaction.response.send_message(embed=emb)
 
 # ---------- 실행 ----------
 bot.run(os.getenv("DISCORD_TOKEN"))
